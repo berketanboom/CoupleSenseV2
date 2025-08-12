@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { groqAnalyze } from '@/src/lib/llm'
+import { groqAnalyze } from '../../../src/lib/llm'
 
 export const runtime = 'edge'
 export const dynamic = 'force-dynamic'
