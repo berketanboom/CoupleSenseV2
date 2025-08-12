@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CoupleSense — Full Experience</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Clash+Display:wght@700&display=swap" rel="stylesheet">
+  <script>
+    // Early boot: persist theme/lang before first paint
+    (function(){ try{ const theme=localStorage.getItem('theme')||'pastel'; const lang=localStorage.getItem('lang')||'en'; document.documentElement.setAttribute('data-theme',theme); document.documentElement.setAttribute('data-lang',lang);}catch(_){} })();
+  </script>
+  <style>
+    /* ===== Full Theme Tokens ===== */
+    :root{ --bg:#f4f6fb; --card:#ffffff; --muted:#f6f7fb; --text:#1c1c1e; --sub:#6b6f7a; --stroke:#c6cfe0; --brand:#6b5cff; --brand-2:#ff6289; --ok:#2ecc71; --bubble-user:#e9edff; --bubble-ai:#ffe9f3; --chip-border: color-mix(in srgb, var(--brand) 28%, var(--stroke)); --chip-ring: color-mix(in srgb, var(--brand-2) 35%, transparent) }
+    [data-theme="dark"]{ --bg:#0c0f15; --card:#10131a; --muted:#0b0f16; --text:#e9e9ef; --sub:#9aa0aa; --stroke:#232736; --brand:#8aa2ff; --brand-2:#ff7aa1; --bubble-user:#0a84ff22; --bubble-ai:#ff4b5c22 }
+    [data-theme="retro"]{ --bg:#fff3e8; --card:#fff1e6; --muted:#ffead9; --text:#2a1f14; --sub:#7a5c3e; --stroke:#e6cfb6; --brand:#ff7b00; --brand-2:#ff3c38; --bubble-user:#ffe6cc; --bubble-ai:#ffd9d6 }
+    [data-theme="blush"]{ --bg:#fff5f8; --card:#fffaff; --muted:#ffeef5; --text:#241b1e; --sub:#8a6b75; --stroke:#f1cddb; --brand:#ff72a8; --brand-2:#ff9cc8; --bubble-user:#ffe5f0; --bubble-ai:#ffe9f5 }
+    [data-theme="ocean"]{ --bg:#ecf7ff; --card:#ffffff; --muted:#e6f3ff; --text:#0b2239; --sub:#56708a; --stroke:#bfdaf2; --brand:#2e8cff; --brand-2:#39d2ff; --bubble-user:#e1efff; --bubble-ai:#e7fbff }
+    [data-theme="forest"]{ --bg:#eff7f3; --card:#ffffff; --muted:#e7f1ec; --text:#15241b; --sub:#4e6a59; --stroke:#c7ded1; --brand:#1fa37a; --brand-2:#87d27a; --bubble-user:#dff6ec; --bubble-ai:#e9f8e4 }
+    [data-theme="sunset"]{ --bg:#fff3ef; --card:#fff8f5; --muted:#ffede7; --text:#2a1a16; --sub:#8a6a5f; --stroke:#f4cfc2; --brand:#ff774e; --brand-2:#ffb86b; --bubble-user:#ffe4dc; --bubble-ai:#fff0e6 }
+
+    /* ===== Base Layout ===== */
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:'DM Sans',system-ui,sans-serif}
+    .container{max-width:980px;margin:32px auto;padding:24px;background:var(--card);border-radius:20px;border:1px solid var(--stroke);box-shadow:0 10px 34px rgba(0,0,0,.07)}
+    header{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;margin-bottom:12px;text-align:center}
+    h1{margin:0;font-size:32px;font-family:'Clash Display','DM Sans',system-ui,sans-serif;letter-spacing:.2px}
+    .sub{color:var(--sub);font-size:14px}
+
+    .toolbar-top{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap}
+    .select,.btn{border:1px solid var(--stroke);background:var(--card);padding:10px 14px;border-radius:999px;cursor:pointer;color:var(--text)}
+    .btn.brand{border:none;background:linear-gradient(90deg,var(--brand),var(--brand-2));color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.08)}
+    .btn.brand:active{transform:translateY(1px)}
+
+    .progress{height:10px;background:var(--muted);border:1px solid var(--stroke);border-radius:999px;overflow:hidden;margin:8px 0}
+    .progress>div{height:100%;width:0;background:linear-gradient(90deg,var(--brand),var(--brand-2));transition:width .35s cubic-bezier(.25,1,.5,1)}
+
+    .shelf{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:8px 0}
+    .badge{padding:6px 10px;border-radius:999px;background:var(--muted);border:1px solid var(--stroke);font-weight:700;font-size:12px}
+    .daily{padding:10px;border:1px dashed var(--stroke);border-radius:12px;background:var(--muted);display:flex;align-items:center;justify-content:center;gap:10px}
+    .bar{flex:1;max-width:180px;height:8px;background:#e9e9f4;border-radius:8px;overflow:hidden;border:1px solid var(--stroke)}
+    .bar>i{display:block;height:100%;width:0;background:var(--brand)}
+
+    .card{border:1px solid var(--stroke);background:var(--card);border-radius:16px;padding:16px;margin-top:12px}
+
+    /* ===== Gender Split (glass + grain + distinct palettes) ===== */
+    .split{display:flex;gap:0;border-radius:16px;overflow:hidden;border:1px solid var(--stroke);position:relative}
+    .split::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:3px;background:color-mix(in srgb, var(--brand) 55%, var(--stroke));opacity:.65;filter:saturate(1.05)}
+    .pane{position:relative;flex:1;min-height:220px;display:flex;align-items:center;justify-content:center;color:#fff;cursor:pointer;transition:transform .18s ease, box-shadow .18s ease, outline-color .18s ease;background-size:cover;background-blend-mode:overlay}
+    .pane:hover{transform:scale(1.01)}
+    .left{background:linear-gradient(145deg, color-mix(in srgb, var(--brand-2) 80%, #fff), color-mix(in srgb, var(--brand) 35%, #fff)), rgba(255,255,255,0.16);backdrop-filter:blur(12px) saturate(1.35);-webkit-backdrop-filter:blur(12px) saturate(1.35)}
+    .right{background:linear-gradient(145deg, color-mix(in srgb, var(--brand) 78%, #000), color-mix(in srgb, var(--brand-2) 25%, #000)), rgba(255,255,255,0.16);backdrop-filter:blur(12px) saturate(1.35);-webkit-backdrop-filter:blur(12px) saturate(1.35)}
+    .pane::after{content:"";position:absolute;inset:0;background-image:url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0nMTAnIGhlaWdodD0nMTAnIHhtbG5zPSdodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2Zyc+PHJlY3Qgd2lkdGg9JzEwJyBoZWlnaHQ9JzEwJyBmaWxsPScjMDAwJyBvcGFjaXR5PScwLjAzJy8+PC9zdmc+');opacity:.20;pointer-events:none}
+    .pane.selected{outline:3px solid color-mix(in srgb, var(--brand) 65%, #fff); outline-offset:-3px; box-shadow:0 12px 30px rgba(0,0,0,.22)}
+    .pane.left.selected{outline-color: color-mix(in srgb, var(--brand-2) 70%, #fff)}
+    .pane.right.selected{outline-color: color-mix(in srgb, var(--brand) 75%, #fff)}
+    .gender{font-size:42px;font-weight:700;text-transform:lowercase}
+
+    /* ===== Chips ===== */
+    .row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+    .chip{background:var(--muted);border:1.5px solid var(--chip-border);border-radius:999px;padding:10px 16px;cursor:pointer;font-weight:600;transition:border-color .2s, box-shadow .2s, background-color .2s, color .2s}
+    .chip:hover{border-color:var(--brand);box-shadow:0 4px 14px rgba(0,0,0,.06)}
+    .chip:focus-visible{outline:none;border-color:var(--brand-2);box-shadow:0 0 0 3px var(--chip-ring)}
+    .chip.selected{background:linear-gradient(90deg,var(--brand),var(--brand-2));color:#fff;border-color:color-mix(in srgb, var(--brand-2) 20%, var(--brand));box-shadow:0 6px 18px color-mix(in srgb, var(--brand) 25%, transparent)}
+
+    /* ===== Chat ===== */
+    .chat-box{height:360px;overflow:auto;background:var(--muted);border:1px solid var(--stroke);border-radius:12px;padding:10px}
+    .msg{max-width:72%;padding:12px 14px;border-radius:14px;margin:8px 0}
+    .msg.user{margin-left:auto;background:var(--bubble-user);border:1px solid var(--stroke)}
+    .msg.ai{margin-right:auto;background:var(--bubble-ai);border:1px solid var(--stroke)}
+    .toolbar{display:flex;gap:8px;margin-top:8px;justify-content:center}
+    .input{flex:1;border:1px solid var(--stroke);border-radius:12px;padding:12px 14px;background:var(--card);color:var(--text)}
+
+    /* ===== Profile ===== */
+    #profile{display:none}
+    .bars{display:grid;grid-template-columns:130px 1fr;gap:8px 12px;align-items:center}
+    .barProfile{height:12px;border-radius:999px;background:var(--muted);border:1px solid var(--stroke);position:relative;overflow:hidden}
+    .barProfile>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--brand),var(--brand-2))}
+
+    /* ===== Share Card (hidden) ===== */
+    #shareCard{position:fixed;left:-9999px;top:-9999px;width:720px;padding:18px;border-radius:16px;background:var(--card);border:1px solid var(--stroke);box-shadow:0 12px 36px rgba(0,0,0,.12)}
+    #shareCard h3{margin:0 0 6px}
+    #shareCard .meta{font-size:12px;color:var(--sub);margin-bottom:10px}
+    #shareCard .sc-msg{border:1px dashed var(--stroke);padding:10px;border-radius:12px;background:var(--muted)}
+
+    /* ===== Splash (4s total) ===== */
+    #splash{position:fixed;inset:0;background:var(--bg);display:grid;place-items:center;z-index:50}
+    #splashTitle{position:relative;display:inline-block;font-family:'Clash Display','DM Sans',sans-serif;font-weight:700;font-size:52px;letter-spacing:.2px;color:var(--text)}
+    #emojiBox{position:absolute;inset:0;pointer-events:none}
+
+    /* Compositor hints */
+    .composite, #splash, #app, #splashTitle, #t_title{transform:translateZ(0);backface-visibility:hidden;will-change:transform,opacity}
+
+    @media (max-width:720px){ .gender{font-size:36px} #splashTitle{font-size:44px} }
+  </style>
+
+<script>
+  // Expose API endpoint to the static HTML (if it needs to call AI)
+  window.COUPLESENSE_API = '/api/analyze';
+</script>
+
+</head>
+<body>
+  <!-- Splash / Intro -->
+  <div id="splash">
+    <div style="position:relative;display:grid;place-items:center">
+      <div id="splashTitle">CoupleSense</div>
+      <div id="emojiBox"></div>
+    </div>
+  </div>
+
+  <div class="container" id="app" style="opacity:0">
+    <header>
+      <h1 id="t_title" style="visibility:hidden">CoupleSense</h1>
+      <div id="t_sub" class="sub" style="display:none">Partner gender → (optional) feelings/problems → partner message/image → AI translation + mediation</div>
+      <div class="toolbar-top">
+        <select id="langSelect" class="select" title="Language">
+          <option value="en">English</option>
+          <option value="tr">Türkçe</option>
+        </select>
+        <select id="themeSelect" class="select" title="Theme">
+          <option value="pastel">Pastel</option>
+          <option value="blush">Blush</option>
+          <option value="ocean">Ocean</option>
+          <option value="forest">Forest</option>
+          <option value="sunset">Sunset</option>
+          <option value="retro">Retro</option>
+          <option value="dark">Dark</option>
+        </select>
+        <button id="resetBtn" class="btn">Reset</button>
+      </div>
+    </header>
+
+    <div class="progress"><div id="progressFill"></div></div>
+    <div class="shelf" id="badgeShelf"></div>
+    <div class="daily" id="dailyBox"><span id="t_daily_title">🎯 Today’s goal: 3 analyses</span><div class="bar"><i id="dailyBar"></i></div><span id="dailyCount">0/3</span></div>
+
+    <!-- STEP 1: Gender selection -->
+    <section class="card" id="step1">
+      <h3 id="t_step1_title">Choose your partner's gender</h3>
+      <div class="split">
+        <div class="pane left" onclick="selectGender('female')"><div class="gender" id="t_gender_f">female</div></div>
+        <div class="pane right" onclick="selectGender('male')"><div class="gender" id="t_gender_m">male</div></div>
+      </div>
+    </section>
+
+    <!-- STEP 2: Feelings / Problems + style -->
+    <section class="card" id="step2" style="display:none">
+      <h3 id="t_feel_title">Your feelings (optional) — select what you currently feel</h3>
+      <div id="feelings" class="row"></div>
+      <h3 id="t_prob_title" style="margin-top:10px">Your problems (optional) — what issues are you facing?</h3>
+      <div id="problems" class="row"></div>
+      <div class="toolbar-top" style="margin-top:8px">
+        <label id="t_style_label">Partner style:</label>
+        <select id="partnerStyle" class="select" style="min-width:160px"></select>
+        <button class="btn brand" onclick="nextStep(3)" id="t_continue">Continue</button>
+      </div>
+    </section>
+
+    <!-- STEP 3: Chat + Profile + Share -->
+    <section class="card" id="step3" style="display:none">
+      <h3 id="t_partner_title">Partner message & image/screenshot</h3>
+      <div id="t_tip" class="sub">Tip: AI merges your (optional) feelings with the partner’s message tone and chosen style to suggest a reply.</div>
+
+      <div id="chatBox" class="chat-box" aria-live="polite"></div>
+      <div class="toolbar">
+        <textarea id="userText" class="input" placeholder="Paste your partner’s message or your summary…"></textarea>
+        <button class="btn brand" onclick="sendText()" id="t_send">Send</button>
+        <input id="fileInput" type="file" accept="image/*" style="display:none"/>
+        <button class="btn" onclick="document.getElementById('fileInput').click()" id="t_image">Image</button>
+        <button id="shareBtn" class="btn" style="display:none">📤 Share Card</button>
+      </div>
+
+      <div id="profile" class="card" style="display:none">
+        <h3 id="t_profile_title">Partner Profile</h3>
+        <div class="bars">
+          <div>❤️ <span id="t_prof_rom">Romantic</span></div><div class="barProfile"><i id="p_rom"></i></div>
+          <div>🧠 <span id="t_prof_log">Logical</span></div><div class="barProfile"><i id="p_log"></i></div>
+          <div>😅 <span id="t_prof_fun">Playful</span></div><div class="barProfile"><i id="p_fun"></i></div>
+          <div>🎭 <span id="t_prof_dra">Dramatic</span></div><div class="barProfile"><i id="p_dra"></i></div>
+          <div>🧊 <span id="t_prof_dis">Distant</span></div><div class="barProfile"><i id="p_dis"></i></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Hidden Share Card template -->
+  <div id="shareCard" aria-hidden="true">
+    <h3>CoupleSense — <span id="t_share_title">Translation & Tips</span></h3>
+    <div class="meta" id="sc_meta"></div>
+    <div class="sc-msg" id="sc_msg"></div>
+    <div style="height:10px"></div>
+    <h4 id="t_share_profile">Partner Profile</h4>
+    <div id="sc_profile"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script>
+    const $ = id => document.getElementById(id);
+    const on = (id, ev, fn) => { const el=$(id); if(el){ el.addEventListener(ev, fn);} return el };
+
+    // ===== Strings (EN/TR) =====
+    const STR={
+      en:{ title:'CoupleSense', subtitle:'Partner gender → (optional) feelings/problems → partner message/image → AI translation + mediation', step1:"Choose your partner's gender", gender_f:'female', gender_m:'male', feel_title:'Your feelings (optional) — select what you currently feel', prob_title:'Your problems (optional) — what issues are you facing?', continue:'Continue', partner_title:'Partner message & image/screenshot', tip:'Tip: AI merges your (optional) feelings with the partner’s message tone and chosen style to suggest a reply.', send:'Send', image:'Image', reset:'Reset', daily_title:"🎯 Today’s goal: 3 analyses", badges:{b1:'🏁 First Steps', b5:'🧠 Empathy Master', b10:'🕊️ Peace Broker'}, style_label:'Partner style:', styles:{neutral:'Neutral', funny:'Funny', serious:'Serious', emotional:'Emotional', logical:'Logical'}, profile_title:'Partner Profile', prof:{rom:'Romantic', log:'Logical', fun:'Playful', dra:'Dramatic', dis:'Distant'}, share_title:'Translation & Tips', share_profile:'Partner Profile' },
+      tr:{ title:'CoupleSense', subtitle:'Partner cinsiyeti → (opsiyonel) hisler/problemler → partner mesaj/görsel → AI çeviri + uzlaştırma', step1:'Partnerinizin cinsiyetini seçin', gender_f:'kadın', gender_m:'erkek', feel_title:'Hisleriniz (opsiyonel) — şu anda ne hissediyorsunuz?', prob_title:'Problemleriniz (opsiyonel) — hangi sorunları yaşıyorsunuz?', continue:'Devam et', partner_title:'Partner mesajı & görsel/ekran görüntüsü', tip:'İpucu: AI, (seçtiyseniz) hislerinizi partnerin mesaj tonuyla birleştirerek bir yanıt önerir.', send:'Gönder', image:'Görsel', reset:'Sıfırla', daily_title:'🎯 Günlük hedef: 3 analiz', badges:{b1:'🏁 İlk Adım', b5:'🧠 Empati Ustası', b10:'🕊️ Barış Elçisi'}, style_label:'Partner stili:', styles:{neutral:'Nötr', funny:'Esprili', serious:'Ciddi', emotional:'Duygusal', logical:'Mantıklı'}, profile_title:'Partner Profili', prof:{rom:'Romantik', log:'Mantıklı', fun:'Oyuncu', dra:'Dramatik', dis:'Uzak'}, share_title:'Çeviri & Öneriler', share_profile:'Partner Profili' }
+    };
+
+    const FEELINGS_EN=["Hurt","Unvalued","Misunderstood","Angry","Lonely","Neglected","Anxious","Overwhelmed","Hopeless","Resentful"];
+    const PROBLEMS_EN=["Lack of communication","Jealousy","Trust issues","Not spending time","Emotional distance","Frequent arguments","Boundary violations","Financial stress","Family/friends interference","Future-plan mismatch"];
+    const FEELINGS_TR=["Kırgın","Değersiz","Anlaşılmamış","Öfkeli","Yalnız","İlgisiz","Kaygılı","Bunalmış","Umutsuz","Küskün"];
+    const PROBLEMS_TR=["İletişim eksikliği","Kıskançlık","Güvensizlik","Zaman ayırmama","Duygusal mesafe","Sürekli tartışma","Sınır ihlalleri","Finansal gerilim","Aile/arkadaş müdahalesi","Gelecek planı uyuşmazlığı"];
+
+    // ===== Counters =====
+    let analysisCount=Number(localStorage.getItem('analysisCount')||0);
+    let todayKey=new Date().toISOString().slice(0,10);
+    let todayCount=Number(JSON.parse(localStorage.getItem('daily')||'{}')[todayKey]||0);
+
+    function setProgress(step){ const map={1:33,2:66,3:100}; $('progressFill').style.width=(map[step]||0)+'%'; }
+    function updateBadges(){ const shelf=$('badgeShelf'); if(!shelf) return; shelf.innerHTML=''; const S=STR[currentLang()]; const defs=[{th:1,label:S.badges.b1},{th:5,label:S.badges.b5},{th:10,label:S.badges.b10}]; defs.forEach(b=>{ if(analysisCount>=b.th){ const span=document.createElement('span'); span.className='badge'; span.textContent=b.label; shelf.appendChild(span); } }); }
+    function updateDaily(){ const goal=3; if(!$('dailyCount')||!$('dailyBar')) return; $('dailyCount').textContent=`${Math.min(todayCount,goal)}/${goal}`; $('dailyBar').style.width=`${Math.min(100,Math.round(todayCount/goal*100))}%`; if(todayCount>=goal) $('dailyBox').style.borderColor='var(--ok)'; }
+    function incCounters(){ analysisCount+=1; localStorage.setItem('analysisCount',analysisCount); const map=JSON.parse(localStorage.getItem('daily')||'{}'); map[todayKey]=(map[todayKey]||0)+1; todayCount=map[todayKey]; localStorage.setItem('daily',JSON.stringify(map)); updateBadges(); updateDaily(); }
+
+    // ===== Lang & Theme =====
+    function currentLang(){ return document.documentElement.getAttribute('data-lang')||'en'; }
+    function applyTheme(name){ document.documentElement.setAttribute('data-theme', name); localStorage.setItem('theme', name); const sel=$('themeSelect'); if(sel) sel.value=name; }
+    function applyLang(lang){ const S=STR[lang]; if(!S) return; const ids={ 't_title':S.title,'t_sub':S.subtitle,'t_step1_title':S.step1,'t_gender_f':S.gender_f,'t_gender_m':S.gender_m,'t_feel_title':S.feel_title,'t_prob_title':S.prob_title,'t_continue':S.continue,'t_partner_title':S.partner_title,'t_tip':S.tip,'t_send':S.send,'t_image':S.image,'resetBtn':S.reset,'t_daily_title':S.daily_title,'t_profile_title':S.profile_title,'t_prof_rom':S.prof.rom,'t_prof_log':S.prof.log,'t_prof_fun':S.prof.fun,'t_prof_dra':S.prof.dra,'t_prof_dis':S.prof.dis,'t_share_title':S.share_title,'t_share_profile':S.share_profile }; Object.keys(ids).forEach(id=>{ const el=$(id); if(el) el.textContent=ids[id]; }); const ps=$('partnerStyle'); if(ps){ const cur=ps.value; ps.innerHTML=''; const opts=S.styles; ['neutral','funny','serious','emotional','logical'].forEach(k=>{ const o=document.createElement('option'); o.value=k; o.textContent=opts[k]; ps.appendChild(o); }); if(['neutral','funny','serious','emotional','logical'].includes(cur)) ps.value=cur; } const F=(lang==='tr')?FEELINGS_TR:FEELINGS_EN, P=(lang==='tr')?PROBLEMS_TR:PROBLEMS_EN; const feelings=$('feelings'), probs=$('problems'); if(feelings&&probs){ feelings.innerHTML=''; probs.innerHTML=''; F.forEach(k=> feelings.appendChild(chip(k))); P.forEach(k=> probs.appendChild(chip(k))); } const lsel=$('langSelect'); if(lsel) lsel.value=lang; document.documentElement.setAttribute('data-lang',lang); localStorage.setItem('lang', lang); }
+
+    on('themeSelect','change', e=> applyTheme(e.target.value));
+    on('langSelect','change', e=> applyLang(e.target.value));
+
+    // ===== Flow =====
+    window.selectGender = function(g){ window.selectedGender=g; const pL=document.querySelector('.split .left'); const pR=document.querySelector('.split .right'); if(pL&&pR){ pL.classList.toggle('selected', g==='female'); pR.classList.toggle('selected', g==='male'); pL.setAttribute('aria-selected', g==='female'); pR.setAttribute('aria-selected', g==='male'); } nextStep(2); setProgress(2); };
+    window.nextStep = function(n){ ['step1','step2','step3'].forEach((id,i)=> { const el=$(id); if(el) el.style.display=(i===n-1?'block':'none'); }); setProgress(n); };
+
+    // ===== Chips =====
+    function chip(text){ const d=document.createElement('div'); d.className='chip'; d.textContent=text; d.onclick=()=>d.classList.toggle('selected'); return d; }
+
+    // ===== Chat =====
+    const chatBox=$('chatBox');
+    function pushMsg(txt,role='ai',html=false){ if(!chatBox) return; const d=document.createElement('div'); d.className=`msg ${role}`; if(html){ d.innerHTML=txt; } else { d.textContent=txt; } chatBox.appendChild(d); chatBox.scrollTop=chatBox.scrollHeight; }
+    on('fileInput','change', e=> handleFiles(e.target.files));
+    async function handleFiles(list){ for(const f of list||[]){ if(!f || !f.type?.startsWith?.('image/')) continue; const url=URL.createObjectURL(f); pushMsg(`<img src="${url}" class="bubble-img" style="max-width:240px;border-radius:10px"/>`,'user',true); await mockAnalyzeImage(f); incCounters(); } }
+
+    function analyzePartnerTone(text){ const lower=(text||'').toLowerCase(); const cues=[]; if(/you never|you always/.test(lower)) cues.push('absolutizing language'); if(/don'?t listen|never listen|ignore/.test(lower)) cues.push('need to feel heard'); if(/time|busy|work/.test(lower)) cues.push('time/availability tension'); if(/trust|lie|cheat|truth/.test(lower)) cues.push('trust concern'); if(!cues.length) cues.push('general emotional need'); return cues; }
+    function toneByStyle(base, style, lang){ if(style==='funny') return base + (lang==='tr'? ' Hafif mizah ekleyin ama duyguyu küçümsemeyin.':' Keep it light; add a tiny bit of humor without dismissing the feeling.'); if(style==='serious') return base + (lang==='tr'? ' Doğrudan ve somut olun; şaka yapmayın.':' Be direct and specific; avoid jokes.'); if(style==='emotional') return base + (lang==='tr'? ' Empatiyle başlayın; duyguları adlandırın.':' Lead with empathy; name feelings.'); if(style==='logical') return base + (lang==='tr'? ' Yapılandırın: sorun→örnek→değişim→adım.':' Structure it: issue→example→change→step.'); return base; }
+    function strategyByGender(emphasize, lang){ const g=(window.selectedGender||'').toLowerCase(); if(g==='female'){ return emphasize ? (lang==='tr'? 'Seni duyuyorum; tek bir örnek paylaşır mısın? Küçük bir değişim seçelim.':'I hear you; one example please. Let’s pick a small change.') : (lang==='tr'? 'Sence en kritik kısım neydi? Bir örnek verelim ve küçük bir adım seçelim.':'What mattered most? Share one example and pick a small step.'); } if(g==='male'){ return emphasize ? (lang==='tr'? 'Bir örnek ve tercih ettiğin alternatif nedir? Uyum sağlayacağım.':'One example and your preferred alternative; I’ll adapt.') : (lang==='tr'? 'Bir örnek ve sonrasında görmek istediğin değişim? Plan yapıp uygulayacağım.':'One example and desired change next time; I’ll follow through.'); } return (lang==='tr'? 'Bir örnek paylaşalım ve küçük bir ilk adım seçelim.':'Share one example and choose a small first step.'); }
+
+    function hash32(s){ s=String(s||''); let h=2166136261>>>0; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=(h*16777619)>>>0; } return h>>>0; }
+
+    function respondAIInput(val){ const lang=currentLang(); const S=STR[lang]; const keys=Array.from(document.querySelectorAll('.chip.selected')).map(x=>x.textContent); const emphasize = keys.some(k=> (lang==='tr'?FEELINGS_TR:FEELINGS_EN).includes(k)); const cues=analyzePartnerTone(val); const sim=(hash32(val)%51)+25; let base = `${S.share_title.replace(/&.*$/,'').trim()}: ${lang==='en'?`The partner's message indicates ${cues.join('; ')} (~${sim}% similar).`:`Partner mesajı ${cues.join('; ')} gösteriyor (~%${sim} benzerlik).`}`; base = toneByStyle(base, ($('partnerStyle')||{}).value||'neutral', lang); const strat = `${(lang==='tr'?'Arabulucu önerisi:':'Mediator suggestion:')} ${strategyByGender(emphasize, lang)}`; return `${(lang==='tr'?'Çeviri:':'Translation:')} ${base}\n${strat}`; }
+
+    window.sendText = function(){ const t=$('userText'); const v=(t&&t.value||'').trim(); if(!v) return; pushMsg(v,'user'); if(t) t.value=''; const reply=respondAIInput(v); pushMsg(reply,'ai'); buildProfile(v, reply); const sbtn=$('shareBtn'); if(sbtn) sbtn.style.display='inline-flex'; incCounters(); };
+
+    async function mockAnalyzeImage(file){ const lang=currentLang(); pushMsg(lang==='tr'?'📷 Görsel alındı, analiz ediliyor…':'📷 Image received, analyzing…','ai'); await new Promise(r=>setTimeout(r,600)); const emphasize = Array.from(document.querySelectorAll('.chip.selected')).some(x=> (currentLang()==='tr'?FEELINGS_TR:FEELINGS_EN).includes(x.textContent)); const strategy=strategyByGender(emphasize, currentLang()); pushMsg((lang==='tr'?'Görsel analizi:':'Image analysis:')+` ${strategy}`,'ai'); }
+
+    function buildProfile(input, ai){ const base = hash32(input+ai); const pct = n => 10 + (n % 81); const romantic = pct(base>>1), logical=pct(base>>2), playful=pct(base>>3), dramatic=pct(base>>4), distant=pct(base>>5); const sum = romantic+logical+playful+dramatic+distant; const norm = v => Math.round(v/sum*100); const R=norm(romantic), L=norm(logical), P=norm(playful), D=norm(dramatic), I=norm(distant); const setW=(id,val)=>{ const el=$(id); if(el){ el.style.width=val+'%'; el.title=val+'%'; } };
+      setW('p_rom',R); setW('p_log',L); setW('p_fun',P); setW('p_dra',D); setW('p_dis',I); const prof=$('profile'); if(prof) prof.style.display='block'; const sm=$('sc_meta'); if(sm) sm.textContent = new Date().toLocaleString(); const smsg=$('sc_msg'); if(smsg) smsg.textContent = ai; const S=STR[currentLang()]; const scp=$('sc_profile'); if(scp){ scp.innerHTML =
+      `<div style="font:600 14px DM Sans">❤️ ${S.prof.rom}: ${R}%</div>
+       <div style="font:600 14px DM Sans">🧠 ${S.prof.log}: ${L}%</div>
+       <div style="font:600 14px DM Sans">😅 ${S.prof.fun}: ${P}%</div>
+       <div style="font:600 14px DM Sans">🎭 ${S.prof.dra}: ${D}%</div>
+       <div style="font:600 14px DM Sans">🧊 ${S.prof.dis}: ${I}%</div>`; }
+    }
+
+    // Share PNG (guarded)
+    on('shareBtn','click', async ()=>{ const node=$('shareCard'); if(!node||!window.html2canvas){ console.error('ShareCard/html2canvas not ready'); return; } const canvas = await html2canvas(node, {backgroundColor:null, scale:2}); const url = canvas.toDataURL('image/png'); if(navigator.share && navigator.canShare && navigator.canShare()){ try{ const file=dataURLtoFile(url,'couplesense.png'); await navigator.share({ files:[file], title:'CoupleSense' }); return; }catch(_){ } } const a=document.createElement('a'); a.href=url; a.download='couplesense.png'; a.click(); });
+    function dataURLtoFile(dataurl, filename) { const arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1], bstr = atob(arr[1]); let n = bstr.length, u8arr = new Uint8Array(n); while(n--){ u8arr[n] = bstr.charCodeAt(n); } return new File([u8arr], filename, {type:mime}); }
+
+    // Reset (preserve theme/lang)
+    on('resetBtn','click', ()=>{ const keepTheme = localStorage.getItem('theme')||($('themeSelect')||{}).value||'pastel'; const keepLang = localStorage.getItem('lang')||($('langSelect')||{}).value||'en'; localStorage.clear(); localStorage.setItem('theme', keepTheme); localStorage.setItem('lang', keepLang); location.reload(); });
+
+    // ===== Splash: Emoji explode (0–0.9s) → drift off-screen (0.9–2.8s) → FLIP to header (2.8–4.0s) =====
+    (function splash(){ const splash=$('splash'), title=$('splashTitle'), header=$('t_title'), app=$('app'); if(!splash||!title||!header||!app) return; 
+      // particles
+      const box=$('emojiBox'); const emojis=['💖','💬','💕','💞','🌸','⭐','✨','🌈']; const W=innerWidth,H=innerHeight; const N=Math.max(26, Math.min(48, Math.round((W*H)/60000)));
+      for(let i=0;i<N;i++){
+        const el=document.createElement('div'); const isShape=Math.random()<0.25;
+        if(isShape){ const sz=(8+Math.random()*12|0)+'px'; Object.assign(el.style,{width:sz,height:sz,borderRadius:'999px',background:'color-mix(in srgb, var(--brand) 35%, var(--brand-2))'}); }
+        else{ el.textContent=emojis[Math.random()*emojis.length|0]; el.style.fontSize=(18+Math.random()*16|0)+'px'; }
+        Object.assign(el.style,{position:'absolute',left:'50%',top:'50%'});
+        const tx=(Math.random()-.5)*W*.85, ty=(Math.random()-.5)*H*.65, rot=(Math.random()*30-15);
+        box.appendChild(el);
+        const delay=Math.random()*350;
+        // explode
+        el.animate([{opacity:0, transform:'translate3d(0,0,0) scale(.88) rotate(0deg)'}, {opacity:.92, transform:`translate3d(${tx}px, ${ty}px, 0) scale(1) rotate(${rot}deg)`}], {duration:900, delay, easing:'cubic-bezier(.22,.9,.3,1)', fill:'forwards'});
+        // drift further off-screen
+        const driftX=tx*2.0, driftY=ty*2.0;
+        el.animate([{transform:`translate3d(${tx}px, ${ty}px, 0) rotate(${rot}deg)`, opacity:.92}, {transform:`translate3d(${driftX}px, ${driftY}px, 0) rotate(${rot+15}deg)`, opacity:0}], {duration:1900, delay:delay+900, easing:'ease-in-out', fill:'forwards'});
+      }
+
+      const MOVE_TIME=1200, START_AT=2800, EASE='cubic-bezier(.22,.9,.3,1)';
+      function syncTypography(from,to){ const cs=getComputedStyle(from); ['font-family','font-size','font-weight','font-style','letter-spacing','line-height','text-transform','font-kerning','font-feature-settings','font-variation-settings','color','margin','padding'].forEach(p=> to.style.setProperty(p, cs.getPropertyValue(p))); to.style.webkitFontSmoothing='antialiased'; to.style.textRendering='optimizeLegibility'; }
+      function start(){ const waitFonts=(document.fonts&&document.fonts.ready)?Promise.race([document.fonts.ready,new Promise(r=>setTimeout(r,500))]):Promise.resolve(); waitFonts.then(()=>{ syncTypography(header,title); const sRect=title.getBoundingClientRect(); const wasHidden=(header.style.visibility==='hidden'); if(wasHidden) header.style.visibility='visible'; const hRect=header.getBoundingClientRect(); if(wasHidden) header.style.visibility='hidden'; if(!(sRect.width>0&&hRect.width>0)){ splash.animate([{opacity:1},{opacity:0}],{duration:500,fill:'forwards'}); app.animate([{opacity:0},{opacity:1}],{duration:500,fill:'forwards'}); setTimeout(()=>splash.remove(),520); return; } const dpr=window.devicePixelRatio||1, px=n=>(Math.round(n*dpr)/dpr); const clone=title.cloneNode(true); Object.assign(clone.style,{position:'fixed',left:px(sRect.left)+'px',top:px(sRect.top)+'px',margin:'0',transformOrigin:'left top'}); syncTypography(header,clone); document.body.appendChild(clone); title.style.visibility='hidden'; const dx=px(hRect.left-sRect.left), dy=px(hRect.top-sRect.top), sx=hRect.width/sRect.width, sy=hRect.height/sRect.height; const move=clone.animate([{transform:'translate3d(0,0,0) scale(1,1)',opacity:.98},{transform:`translate3d(${dx}px,${dy}px,0) scale(${sx},${sy})`,opacity:1}],{duration:MOVE_TIME,easing:EASE,fill:'forwards'}); splash.animate([{opacity:1},{opacity:0}],{duration:MOVE_TIME,easing:'linear',fill:'forwards'}); app.animate([{opacity:0},{opacity:1}],{duration:MOVE_TIME,easing:'linear',fill:'forwards'}); move.finished.then(()=>{ header.style.visibility='visible'; splash.remove(); clone.remove(); const sub=$('t_sub'); if(sub){ sub.style.display='block'; sub.animate([{opacity:0},{opacity:1}],{duration:650,easing:EASE,fill:'forwards'}); } }).catch(()=>{ header.style.visibility='visible'; splash.remove(); clone.remove(); }); }); }
+      setTimeout(start, START_AT); setTimeout(()=>{ if($('splash')){ header.style.visibility='visible'; const appEl=$('app'); if(appEl) appEl.style.opacity='1'; splash.remove(); } }, START_AT+MOVE_TIME+1200);
+    })();
+
+    // ===== Init =====
+    (function init(){ const savedTheme=localStorage.getItem('theme')||'pastel'; const savedLang=localStorage.getItem('lang')||'en'; applyTheme(savedTheme); applyLang(savedLang); setProgress(1); updateBadges(); updateDaily(); })();
+  </script>
+</body>
+</html>
