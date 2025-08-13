@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req) {
   try {
-    const payload = await req.json();
+    const body = await req.json();
     const {
       message,
       language = 'en',
@@ -14,8 +14,9 @@ export async function POST(req) {
       feelings = [],
       problems = [],
       partnerStyle = 'neutral',
-      image_text = '' // OCR'dan gelen metin
-    } = payload || {};
+      image_text = '',
+      history = []   // [{role:'user'|'assistant', content:string}, ...]
+    } = body || {};
 
     if (!message) {
       return NextResponse.json({ error: 'No message provided.' }, { status: 400 });
@@ -25,7 +26,24 @@ export async function POST(req) {
       return NextResponse.json({ error: 'GROQ_API_KEY not set' }, { status: 500 });
     }
 
-    const userJSON = JSON.stringify({
+    // Sistem + bağlam
+    const system = 
+`You are a respectful relationship mediator.
+ALWAYS reply strictly in "${language}" ONLY.
+Return STRICT JSON with keys:
+{
+  "translation": string,
+  "explanation": string,
+  "mediation_steps": string[],
+  "tone_scores": { "romantic": number, "logical": number, "playful": number, "dramatic": number, "distant": number },
+  "safety_flags": string[]
+}
+No markdown, no extra keys, no prose outside JSON.
+Use "image_text" only if provided (OCR). Avoid stereotypes. 
+PartnerGender=${partnerGender}. PartnerStyle=${partnerStyle}.`;
+
+    // Kullanıcı yükü (UI bağlamı + mevcut mesaj + OCR)
+    const userPayload = {
       message,
       image_text,
       language,
@@ -33,7 +51,13 @@ export async function POST(req) {
       partnerStyle,
       feelings,
       problems
-    });
+    };
+
+    // Geçmişi Groq formatına dönüştür
+    const historyMsgs = Array.isArray(history) ? history
+      .filter(m => m && (m.role==='user' || m.role==='assistant') && typeof m.content === 'string')
+      .slice(-12)
+      .map(m => ({ role: m.role, content: m.content })) : [];
 
     const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -44,25 +68,12 @@ export async function POST(req) {
       body: JSON.stringify({
         model: "llama-3.1-8b-instant",
         temperature: 0.1,
-        max_tokens: 700,
+        max_tokens: 800,
         response_format: { type: "json_object" },
         messages: [
-          {
-            role: "system",
-            content:
-`You are a respectful relationship mediator. 
-ALWAYS reply in the requested language: "${language}" ONLY.
-Return STRICT JSON with keys:
-{
-  "translation": string,
-  "explanation": string,
-  "mediation_steps": string[],
-  "tone_scores": { "romantic": number, "logical": number, "playful": number, "dramatic": number, "distant": number },
-  "safety_flags": string[]
-}
-Use "image_text" only if provided (OCR). No markdown, no extra keys. Avoid stereotypes; be neutral yet empathetic. PartnerGender=${partnerGender}. PartnerStyle=${partnerStyle}.`
-          },
-          { role: "user", content: userJSON }
+          { role: "system", content: system },
+          ...historyMsgs,
+          { role: "user", content: JSON.stringify(userPayload) }
         ]
       })
     });
@@ -78,7 +89,6 @@ Use "image_text" only if provided (OCR). No markdown, no extra keys. Avoid stere
     try {
       parsed = JSON.parse(content);
     } catch {
-      // Model JSON dışı dönerse minimum güvenli fallback
       parsed = {
         translation: content,
         explanation: "",
