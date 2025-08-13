@@ -7,7 +7,15 @@ export const dynamic = 'force-dynamic';
 export async function POST(req) {
   try {
     const payload = await req.json();
-    const { message, partnerGender = 'unknown', language = 'en' } = payload || {};
+    const {
+      message,
+      language = 'en',
+      partnerGender = 'unknown',
+      feelings = [],
+      problems = [],
+      partnerStyle = 'neutral',
+      image_text = '' // OCR'dan gelen metin
+    } = payload || {};
 
     if (!message) {
       return NextResponse.json({ error: 'No message provided.' }, { status: 400 });
@@ -17,7 +25,16 @@ export async function POST(req) {
       return NextResponse.json({ error: 'GROQ_API_KEY not set' }, { status: 500 });
     }
 
-    // Groq çağrısı — stabil, hızlı model
+    const userJSON = JSON.stringify({
+      message,
+      image_text,
+      language,
+      partnerGender,
+      partnerStyle,
+      feelings,
+      problems
+    });
+
     const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -28,12 +45,14 @@ export async function POST(req) {
         model: "llama-3.1-8b-instant",
         temperature: 0.1,
         max_tokens: 700,
+        response_format: { type: "json_object" },
         messages: [
           {
             role: "system",
             content:
-`You are an empathetic relationship mediator. 
-Return STRICT JSON ONLY (no prose, no markdown) with this schema:
+`You are a respectful relationship mediator. 
+ALWAYS reply in the requested language: "${language}" ONLY.
+Return STRICT JSON with keys:
 {
   "translation": string,
   "explanation": string,
@@ -41,11 +60,10 @@ Return STRICT JSON ONLY (no prose, no markdown) with this schema:
   "tone_scores": { "romantic": number, "logical": number, "playful": number, "dramatic": number, "distant": number },
   "safety_flags": string[]
 }
-Language=${language}. PartnerGender=${partnerGender}. Consider user feelings only as context. Avoid stereotypes.`
+Use "image_text" only if provided (OCR). No markdown, no extra keys. Avoid stereotypes; be neutral yet empathetic. PartnerGender=${partnerGender}. PartnerStyle=${partnerStyle}.`
           },
-          { role: "user", content: JSON.stringify(payload || {}) }
-        ],
-        response_format: { type: "json_object" }
+          { role: "user", content: userJSON }
+        ]
       })
     });
 
@@ -55,9 +73,21 @@ Language=${language}. PartnerGender=${partnerGender}. Consider user feelings onl
     }
 
     const data = await groqRes.json();
-    const content = data?.choices?.[0]?.message?.content || "";
-    // UI tarafı esnek olsun diye JSON’u olduğu gibi döndürüyoruz
-    return NextResponse.json(JSON.parse(content));
+    const content = data?.choices?.[0]?.message?.content || "{}";
+    let parsed;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      // Model JSON dışı dönerse minimum güvenli fallback
+      parsed = {
+        translation: content,
+        explanation: "",
+        mediation_steps: [],
+        tone_scores: { romantic:0, logical:0, playful:0, dramatic:0, distant:0 },
+        safety_flags: ["non_json_fallback"]
+      };
+    }
+    return NextResponse.json(parsed, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err) {
     return NextResponse.json({ error: err?.message || 'Internal error' }, { status: 500 });
   }
