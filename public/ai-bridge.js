@@ -1,9 +1,10 @@
-// public/ai-bridge.js  (v2.3: ONLY active when a VISIBLE textarea exists)
+// public/ai-bridge.js  (v2.4: chat bubbles + OCR + strict language)
 (function(){
   const $  = (s,r=document)=>r.querySelector(s);
   const $$ = (s,r=document)=>Array.from(r.querySelectorAll(s));
   const isVisible = (el)=> !!el && el.offsetParent !== null;
 
+  // ---- helpers ----
   function getLanguage(){
     try{
       const sel=$$('select').find(s=>/Türkçe|English/i.test(s.textContent||''));
@@ -27,41 +28,96 @@
     const s=$$('select').find(x=>/Neutral|Funny|Serious|Emotional|Logical/i.test(x.textContent||''));
     return s ? s.value : 'neutral';
   }
-  function getFeelings(){
-    return $$('.chip.selected').map(el=>(el.textContent||'').trim()).filter(Boolean);
-  }
+  function getFeelings(){ return $$('.chip.selected').map(el=>(el.textContent||'').trim()).filter(Boolean) }
 
-  function getVisibleTextarea(){
-    return $$('textarea').find(isVisible) || null;
-  }
+  function getVisibleTextarea(){ return $$('textarea').find(isVisible) || null }
   function getMessage(){
     const t = getVisibleTextarea();
     return t?.value?.trim() || '';
   }
 
+  function findNearestFileInput(){
+    const t = getVisibleTextarea();
+    if(!t) return null;
+    const container = t.closest('section, form, div') || document;
+    const inputs = $$('input[type="file"]', container);
+    return inputs.find(isVisible) || null;
+  }
+
+  // Chat container: varsa #chatBox, yoksa textarea altına yarat
+  function getChat(){
+    let box = $('#chatBox');
+    if(box) return box;
+    const t = getVisibleTextarea();
+    box = document.createElement('div');
+    box.id = 'chatBox';
+    box.style.cssText = 'margin-top:12px; display:flex; flex-direction:column; gap:8px;';
+    (t?.parentElement || document.body).appendChild(box);
+    return box;
+  }
+  function bubble(role, text){
+    const el = document.createElement('div');
+    el.className = role==='user' ? 'bubble user' : 'bubble ai';
+    el.textContent = text;
+    el.style.cssText = `
+      align-self:${role==='user'?'flex-end':'flex-start'};
+      max-width: 90%;
+      padding:10px 12px;border-radius:14px;
+      white-space:pre-wrap;word-break:break-word;
+      background:${role==='user'?'var(--bubble-user)':'var(--bubble-ai)'};
+      border:1px solid var(--stroke); color:var(--text);
+    `;
+    getChat().appendChild(el);
+    el.scrollIntoView({block:'end', behavior:'smooth'});
+    return el;
+  }
+  function typing(){
+    const el = bubble('ai', getLanguage()==='tr'?'Yazıyor…':'Typing…');
+    el.dataset.typing='1';
+    el.style.opacity = '0.75';
+    return el;
+  }
+  function replace(el, txt){
+    el.textContent = txt;
+    el.style.opacity = '1';
+    delete el.dataset.typing;
+  }
+
+  // OCR — Tesseract.js’i CDN’den dinamik yükle (anahtar gerekmez)
+  let tesseractReady = null;
+  function loadTesseract(){
+    if (tesseractReady) return tesseractReady;
+    tesseractReady = new Promise((resolve,reject)=>{
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+      s.onload = ()=> resolve(window.Tesseract);
+      s.onerror = ()=> reject(new Error('Tesseract load failed'));
+      document.head.appendChild(s);
+    });
+    return tesseractReady;
+  }
+  async function runOCR(file, lang){
+    try{
+      const T = await loadTesseract();
+      const { data } = await T.recognize(file, lang==='tr'?'tur':'eng', { logger: ()=>{} });
+      return (data?.text || '').trim();
+    }catch{
+      return '';
+    }
+  }
+
+  // Sadece textarea görüldüğünde "Send/Gönder" butonuna bağlan
   function findSendButtonsNearTextarea(){
     const txt = getVisibleTextarea();
-    if(!txt) return [];                // ⟵ Step 1/2: hiçbir şey yapma
+    if(!txt) return [];
     const container = txt.closest('section, form, div') || document;
     const btns = $$('button,[role="button"],input[type="submit"]', container);
-    // yalnızca "Send/Gönder" veya data-role="analyze"
     return btns.filter(b=>{
       const t=(b.textContent||b.value||'').trim().toLowerCase();
       if(/send|gönder/.test(t)) return true;
       if((b.getAttribute('data-role')||'').toLowerCase()==='analyze') return true;
       return false;
     });
-  }
-
-  function getOutputSlot(){
-    let out=$('#aiOutput, .ai-output');
-    if(out) return out;
-    const txt = getVisibleTextarea();
-    out=document.createElement('div');
-    out.id='aiOutput';
-    out.style.cssText='margin-top:12px;background:var(--muted);border:1px solid var(--stroke);border-radius:12px;padding:12px;white-space:pre-wrap;';
-    (txt?.parentElement||document.body).appendChild(out);
-    return out;
   }
 
   async function callAnalyze(payload){
@@ -76,13 +132,12 @@
     }
     return res.json();
   }
-
   function formatResp(data){
     const steps=Array.isArray(data?.mediation_steps)?data.mediation_steps.map(s=>`- ${s}`).join('\n'):'';
     return `${data?.translation||''}\n\n${data?.explanation||''}\n${steps}`;
   }
 
-  function buildPayload(){
+  function buildBasePayload(){
     const language=getLanguage();
     const payload={
       partnerGender:getGender(),
@@ -94,35 +149,50 @@
       sessionId:(localStorage.getItem('sid') || (crypto.randomUUID?.() || String(Date.now())))
     };
     localStorage.setItem('sid', payload.sessionId);
-    return { payload, language };
+    return payload;
   }
 
   async function onSendClick(e){
-    // Sadece SEND/GÖNDER butonunda tetikteyiz
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     if(e.stopImmediatePropagation) e.stopImmediatePropagation();
 
-    const { payload, language } = buildPayload();
-    const out = getOutputSlot();
+    const payload = buildBasePayload();
+    const lang = payload.language;
     if(!payload.message){
-      out.textContent = language==='tr' ? 'Lütfen partner mesajını girin.' : 'Please enter your partner message.';
+      bubble('ai', lang==='tr' ? 'Lütfen partner mesajını yaz.' : 'Please enter your partner message.');
       return;
     }
-    out.textContent = language==='tr' ? 'Analiz ediliyor…' : 'Analyzing…';
+
+    // (Opsiyonel) Görselden OCR metni çek ve mesaja ekle
+    const fileInput = findNearestFileInput();
+    if(fileInput && fileInput.files && fileInput.files[0]){
+      const imgText = await runOCR(fileInput.files[0], lang);
+      if (imgText) {
+        payload.image_text = imgText;
+        // İpucu: kullanıcıya görsel metni kombine ettiğimizi göster
+        bubble('ai', lang==='tr' ? 'Görsel analiz edildi, metin içeriği mesaja eklendi.' : 'Image analyzed, extracted text merged into the message.');
+      } else {
+        bubble('ai', lang==='tr' ? 'Görselden metin çıkarılamadı, yalnızca yazdığınız mesaj analiz edilecek.' : 'Could not extract text from image; analyzing your typed message only.');
+      }
+    }
+
+    // Chat’e kullanıcı mesajını düş
+    bubble('user', payload.message);
+
+    const typingEl = typing();
     try{
       const data = await callAnalyze(payload);
-      out.textContent = formatResp(data);
+      replace(typingEl, formatResp(data));
     }catch(err){
-      out.textContent = String(err?.message||err);
+      replace(typingEl, (err && (err.message||String(err))) || 'AI call failed');
     }
   }
 
   function bind(){
-    const sendBtns = findSendButtonsNearTextarea();
-    if(!sendBtns.length) return false; // Step 1/2'de false döner → Continue etkilenmez
+    const btns=findSendButtonsNearTextarea();
+    if(!btns.length) return false;
     let n=0;
-    for(const b of sendBtns){
+    for(const b of btns){
       if(b.__csBound) continue;
       b.addEventListener('click', onSendClick, { capture:true });
       b.__csBound = true;
@@ -132,28 +202,26 @@
     return n>0;
   }
 
-  // Step değiştikçe yeniden deneyelim (textarea görünür olunca bağlanır)
-  document.addEventListener('click', ()=>{
-    if (!getVisibleTextarea()) return;
-    bind();
-  });
+  document.addEventListener('click', ()=>{ if(getVisibleTextarea()) bind() });
   document.addEventListener('DOMContentLoaded', ()=>{
     let ok=bind(), tries=0;
-    const id=setInterval(()=>{
-      tries++;
-      if(!ok) ok=bind();
-      if(tries>40 || ok) clearInterval(id);
-    }, 500);
+    const id=setInterval(()=>{tries++; if(!ok) ok=bind(); if(tries>40||ok) clearInterval(id)},500);
   });
 
-  // Test helper
+  // Manual test
   window.__csForce = async ()=>{
     if(!getVisibleTextarea()) return 'Textarea not visible yet.';
-    const { payload } = buildPayload();
-    if(!payload.message) payload.message = payload.language==='tr' ? 'Bu hafta sonu görüşelim mi?' : 'Can we meet this weekend?';
-    const data=await callAnalyze(payload);
-    const out=getOutputSlot(); out.textContent = formatResp(data);
-    return data;
+    const p = buildBasePayload();
+    if(!p.message) p.message = p.language==='tr'?'Bu hafta sonu görüşelim mi?':'Can we meet this weekend?';
+    const typingEl = typing();
+    try{
+      const data = await callAnalyze(p);
+      replace(typingEl, formatResp(data));
+      return data;
+    }catch(err){
+      replace(typingEl, String(err?.message||err));
+      throw err;
+    }
   };
-  try{ if(window.parent && window.parent!==window) window.parent.__csForce = window.__csForce; }catch(e){}
+  try{ if(window.parent && window.parent!==window) window.parent.__csForce = window.__csForce }catch(e){}
 })();
